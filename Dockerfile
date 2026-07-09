@@ -1,7 +1,7 @@
 # =============================================================================
 # SmolVLA Training Docker Image
 # =============================================================================
-FROM nvidia/cuda:12.4.0-cudnn-devel-ubuntu22.04
+FROM nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04
 
 LABEL description="SmolVLA training environment (lerobot 0.6.1 + SmolVLM2-500M)"
 
