@@ -3,7 +3,7 @@ name: Build and Publish Docker Image
 on:
   push:
     branches: [main]
-  workflow_dispatch:  # allow manual trigger
+  workflow_dispatch:  # manual trigger
 
 env:
   IMAGE_NAME: ghcr.io/${{ github.repository }}
@@ -19,22 +19,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download SmolVLM2 base model (processor files)
-        run: |
-          pip install huggingface_hub
-          mkdir -p models/smolvla_base
-          # Download only config + processor files (not the heavy safetensors)
-          # The VLM base weights will be saved by user from HuggingFace
-          python -c "
-          from huggingface_hub import hf_hub_download
-          files = ['config.json', 'policy_preprocessor.json', 'policy_postprocessor.json',
-                   'policy_preprocessor_step_5_normalizer_processor.safetensors',
-                   'policy_postprocessor_step_0_unnormalizer_processor.safetensors']
-          for f in files:
-              hf_hub_download('lerobot/smolvla_base', filename=f, local_dir='models/smolvla_base')
-          print('Processor files downloaded')
-          "
-
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -46,6 +30,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          file: ./Dockerfile
           push: true
           tags: |
             ${{ env.IMAGE_NAME }}:latest
