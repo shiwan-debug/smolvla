@@ -1,46 +1,59 @@
-# =============================================================================
-# SmolVLA Training Docker Image
-# Based on PyTorch official image (comes with Python 3.12 + CUDA + PyTorch)
-# =============================================================================
-FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-devel
+# SmolVLA training image — based on lerobot project structure
+ARG CUDA_VERSION=12.8.1
+FROM nvidia/cuda:${CUDA_VERSION}-base-ubuntu22.04
 
-LABEL description="SmolVLA training environment (lerobot 0.6.1)"
+ARG PYTHON_VERSION=3.12
 
-ENV DEBIAN_FRONTEND=noninteractive
+ENV DEBIAN_FRONTEND=noninteractive \
+    MUJOCO_GL=egl \
+    PATH=/lerobot/.venv/bin:/usr/local/bin:$PATH \
+    DEVICE=cuda \
+    UV_PYTHON_INSTALL_DIR=/opt/uv/python \
+    UV_LINK_MODE=copy
 
-# =============================================================================
-# System packages
-# =============================================================================
+# ---- System packages ----
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git curl vim \
-    libgl1 libglib2.0-0 libsm6 libxext6 libxrender-dev \
-    && apt-get clean && rm -rf /var/lib/apt/lists/*
+    build-essential \
+    ca-certificates \
+    cmake \
+    curl \
+    ffmpeg \
+    git \
+    libegl1 \
+    libgeos-dev \
+    libgl1 \
+    libglib2.0-0 \
+    ninja-build \
+    pkg-config \
+    && curl -LsSf https://astral.sh/uv/install.sh | sh \
+    && mv /root/.local/bin/uv /usr/local/bin/uv \
+    && uv python install ${PYTHON_VERSION} \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# =============================================================================
-# Python dependencies
-# =============================================================================
-COPY requirements-docker.txt /tmp/requirements.txt
-RUN pip install --no-cache-dir -r /tmp/requirements.txt
+WORKDIR /lerobot
 
-# =============================================================================
-# Install lerobot from source
-# =============================================================================
-WORKDIR /smolvla
-COPY src/ /smolvla/src/
-COPY train.py train_config.json test_smolvla.py /smolvla/
+ENV HOME=/root \
+    HF_HOME=/root/.cache/huggingface \
+    HF_LEROBOT_HOME=/root/.cache/huggingface/lerobot \
+    TORCH_HOME=/root/.cache/torch
 
-RUN pip install --no-cache-dir -e .
+# ---- Create venv ----
+RUN uv venv --python ${PYTHON_VERSION}
 
-# =============================================================================
-# Directories
-# =============================================================================
-RUN mkdir -p /smolvla/datasets /smolvla/outputs /smolvla/models
+# ---- Install lerobot ----
+COPY setup.py pyproject.toml uv.lock README.md MANIFEST.in ./
+COPY src/ src/
 
-# =============================================================================
-# Environment
-# =============================================================================
+RUN uv sync --locked --extra all --no-cache
+
+# ---- Copy custom scripts ----
+COPY train.py train_config.json test_smolvla.py requirements.txt ./
+
+# ---- Directories ----
+RUN mkdir -p /lerobot/datasets /lerobot/outputs /lerobot/models
+
 ENV HF_HUB_OFFLINE=1
 ENV TRANSFORMERS_OFFLINE=1
 
-WORKDIR /smolvla
-CMD ["python", "train.py"]
+CMD ["/bin/bash"]
